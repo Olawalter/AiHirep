@@ -152,17 +152,56 @@ export async function getAppeal(panelId: number): Promise<Appeal | null> {
 }
 
 export async function getPanelsByManager(address: string): Promise<HiringPanel[]> {
-  try { return await callView<HiringPanel[]>("get_panels_by_manager", [address.toLowerCase()]); }
-  catch { return []; }
+  const lower = address.toLowerCase();
+  try {
+    const result = await callView<HiringPanel[]>("get_panels_by_manager", [lower]);
+    console.log("[getPanelsByManager] result for", lower, ":", result);
+    if (Array.isArray(result) && result.length > 0) return result;
+    // Fallback: scan all panels and filter by manager
+    console.log("[getPanelsByManager] empty result, falling back to getAllPanels filter");
+    const all = await callView<HiringPanel[]>("get_all_panels");
+    return (all ?? []).filter((p) => p.manager?.toLowerCase() === lower);
+  } catch (e) {
+    console.error("[getPanelsByManager] error:", e);
+    try {
+      const all = await callView<HiringPanel[]>("get_all_panels");
+      return (all ?? []).filter((p) => p.manager?.toLowerCase() === lower);
+    } catch {
+      return [];
+    }
+  }
 }
 
 export async function getApplicationsByCandidate(address: string): Promise<CandidateApplication[]> {
+  const lower = address.toLowerCase();
   try {
-    const result = await callView<CandidateApplication[]>("get_applications_by_candidate", [address.toLowerCase()]);
-    console.log("[getApplicationsByCandidate] result for", address.toLowerCase(), ":", result);
-    return result ?? [];
+    const result = await callView<CandidateApplication[]>("get_applications_by_candidate", [lower]);
+    console.log("[getApplicationsByCandidate] direct result for", lower, ":", result);
+    if (Array.isArray(result) && result.length > 0) return result;
   } catch (e) {
-    console.error("[getApplicationsByCandidate] error:", e);
+    console.error("[getApplicationsByCandidate] direct lookup error:", e);
+  }
+
+  // Fallback: scan every panel's applications and filter by candidate address
+  console.log("[getApplicationsByCandidate] falling back to full panel scan for", lower);
+  try {
+    const panels = await callView<HiringPanel[]>("get_all_panels");
+    if (!Array.isArray(panels) || panels.length === 0) return [];
+    const chunks = await Promise.allSettled(
+      panels.map((p) => callView<CandidateApplication[]>("get_panel_applications", [p.panel_id]))
+    );
+    const found: CandidateApplication[] = [];
+    for (const chunk of chunks) {
+      if (chunk.status === "fulfilled" && Array.isArray(chunk.value)) {
+        for (const app of chunk.value) {
+          if (app.candidate?.toLowerCase() === lower) found.push(app);
+        }
+      }
+    }
+    console.log("[getApplicationsByCandidate] scan found:", found.length, "applications");
+    return found;
+  } catch (e) {
+    console.error("[getApplicationsByCandidate] scan fallback error:", e);
     return [];
   }
 }
