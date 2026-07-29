@@ -1,4 +1,4 @@
-# { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
+# { "Depends": "py-genlayer:1zr6nqk597d97kg0dyxg0shhrykx5v02zjgnyrajapy4wlqvfvwh" }
 
 from genlayer import *
 import json
@@ -6,19 +6,19 @@ from datetime import datetime, timezone
 
 
 class AIHiringPanelProtocol(gl.Contract):
-    panels: TreeMap[u64, str]
-    applications: TreeMap[u64, str]
-    rankings: TreeMap[u64, str]
-    appeals: TreeMap[u64, str]
-    panel_applications: TreeMap[u64, str]
+    panels: TreeMap[u32, str]
+    applications: TreeMap[u32, str]
+    rankings: TreeMap[u32, str]
+    appeals: TreeMap[u32, str]
+    panel_applications: TreeMap[u32, str]
     candidate_applications: TreeMap[str, str]
     manager_panels: TreeMap[str, str]
-    panel_count: u64
-    application_count: u64
+    panel_count: u32
+    application_count: u32
 
     def __init__(self) -> None:
-        self.panel_count = u64(0)
-        self.application_count = u64(0)
+        self.panel_count = u32(0)
+        self.application_count = u32(0)
 
     # ── Write methods ────────────────────────────────────────────────────────
 
@@ -37,7 +37,7 @@ class AIHiringPanelProtocol(gl.Contract):
         appeal_window: u64,
     ) -> None:
         panel_id = self.panel_count
-        self.panel_count = u64(int(self.panel_count) + 1)
+        self.panel_count = u32(int(self.panel_count) + 1)
         manager = gl.message.sender_address.as_hex
         panel = {
             "panel_id": int(panel_id),
@@ -63,30 +63,33 @@ class AIHiringPanelProtocol(gl.Contract):
 
     @gl.public.write
     def open_panel(self, panel_id: u64) -> None:
-        assert panel_id in self.panels, "panel not found"
-        panel = json.loads(self.panels[panel_id])
-        assert panel["manager"] == gl.message.sender_address.as_hex, "not manager"
-        assert panel["status"] == "draft", "not draft"
+        pid = u32(int(panel_id))
+        assert pid in self.panels, "EXPECTED: panel not found"
+        panel = json.loads(self.panels[pid])
+        assert panel["manager"] == gl.message.sender_address.as_hex, "EXPECTED: not manager"
+        assert panel["status"] == "draft", "EXPECTED: panel is not in draft status"
         panel["status"] = "open"
-        self.panels[panel_id] = json.dumps(panel)
+        self.panels[pid] = json.dumps(panel)
 
     @gl.public.write
     def close_applications(self, panel_id: u64) -> None:
-        assert panel_id in self.panels, "panel not found"
-        panel = json.loads(self.panels[panel_id])
-        assert panel["manager"] == gl.message.sender_address.as_hex, "not manager"
-        assert panel["status"] == "open", "not open"
+        pid = u32(int(panel_id))
+        assert pid in self.panels, "EXPECTED: panel not found"
+        panel = json.loads(self.panels[pid])
+        assert panel["manager"] == gl.message.sender_address.as_hex, "EXPECTED: not manager"
+        assert panel["status"] == "open", "EXPECTED: panel is not open"
         panel["status"] = "closed"
-        self.panels[panel_id] = json.dumps(panel)
+        self.panels[pid] = json.dumps(panel)
 
     @gl.public.write
     def cancel_panel(self, panel_id: u64) -> None:
-        assert panel_id in self.panels, "panel not found"
-        panel = json.loads(self.panels[panel_id])
-        assert panel["manager"] == gl.message.sender_address.as_hex, "not manager"
-        assert panel["status"] in ("draft", "open"), "cannot cancel"
+        pid = u32(int(panel_id))
+        assert pid in self.panels, "EXPECTED: panel not found"
+        panel = json.loads(self.panels[pid])
+        assert panel["manager"] == gl.message.sender_address.as_hex, "EXPECTED: not manager"
+        assert panel["status"] in ("draft", "open"), "EXPECTED: panel cannot be cancelled at this stage"
         panel["status"] = "cancelled"
-        self.panels[panel_id] = json.dumps(panel)
+        self.panels[pid] = json.dumps(panel)
 
     @gl.public.write
     def submit_application(
@@ -102,12 +105,13 @@ class AIHiringPanelProtocol(gl.Contract):
         role_fit_statement: str,
         evidence_urls: str,
     ) -> None:
-        assert panel_id in self.panels, "panel not found"
-        panel = json.loads(self.panels[panel_id])
-        assert panel["status"] == "open", "applications closed"
+        pid = u32(int(panel_id))
+        assert pid in self.panels, "EXPECTED: panel not found"
+        panel = json.loads(self.panels[pid])
+        assert panel["status"] == "open", "EXPECTED: applications are not open"
         candidate = gl.message.sender_address.as_hex
         app_id = self.application_count
-        self.application_count = u64(int(self.application_count) + 1)
+        self.application_count = u32(int(self.application_count) + 1)
         app = {
             "application_id": int(app_id),
             "panel_id": int(panel_id),
@@ -125,7 +129,7 @@ class AIHiringPanelProtocol(gl.Contract):
             "submitted_at": int(datetime.now(timezone.utc).timestamp()),
         }
         self.applications[app_id] = json.dumps(app)
-        pa_key = panel_id
+        pa_key = pid
         panel_apps = json.loads(self.panel_applications[pa_key]) if pa_key in self.panel_applications else []
         panel_apps.append(int(app_id))
         self.panel_applications[pa_key] = json.dumps(panel_apps)
@@ -148,12 +152,13 @@ class AIHiringPanelProtocol(gl.Contract):
         role_fit_statement: str,
         evidence_urls: str,
     ) -> None:
-        assert application_id in self.applications, "application not found"
-        app = json.loads(self.applications[application_id])
-        assert app["candidate"] == gl.message.sender_address.as_hex, "not applicant"
-        assert app["status"] == "submitted", "cannot revise"
-        panel = json.loads(self.panels[u64(app["panel_id"])])
-        assert panel["status"] == "open", "panel not open"
+        aid = u32(int(application_id))
+        assert aid in self.applications, "EXPECTED: application not found"
+        app = json.loads(self.applications[aid])
+        assert app["candidate"] == gl.message.sender_address.as_hex, "EXPECTED: not applicant"
+        assert app["status"] == "submitted", "EXPECTED: application cannot be revised"
+        panel = json.loads(self.panels[u32(app["panel_id"])])
+        assert panel["status"] == "open", "EXPECTED: panel is not open"
         app["name_or_handle"] = name_or_handle
         app["resume_summary"] = resume_summary
         app["portfolio_url"] = portfolio_url
@@ -163,24 +168,25 @@ class AIHiringPanelProtocol(gl.Contract):
         app["communication_statement"] = communication_statement
         app["role_fit_statement"] = role_fit_statement
         app["evidence_urls"] = json.loads(evidence_urls)
-        self.applications[application_id] = json.dumps(app)
+        self.applications[aid] = json.dumps(app)
 
     @gl.public.write
     def request_ranking(self, panel_id: u64) -> None:
-        assert panel_id in self.panels, "panel not found"
-        panel = json.loads(self.panels[panel_id])
-        assert panel["manager"] == gl.message.sender_address.as_hex, "not manager"
-        assert panel["status"] == "closed", "applications not closed"
+        pid = u32(int(panel_id))
+        assert pid in self.panels, "EXPECTED: panel not found"
+        panel = json.loads(self.panels[pid])
+        assert panel["manager"] == gl.message.sender_address.as_hex, "EXPECTED: not manager"
+        assert panel["status"] == "closed", "EXPECTED: applications must be closed before ranking"
 
-        pa_key = panel_id
+        pa_key = pid
         app_ids = json.loads(self.panel_applications[pa_key]) if pa_key in self.panel_applications else []
         apps = []
         for aid in app_ids:
-            a = json.loads(self.applications[u64(aid)])
+            a = json.loads(self.applications[u32(aid)])
             apps.append(a)
 
         weights = panel.get("evaluation_weights", {})
-        prompt = (
+        base_prompt = (
             "You are an expert hiring panel evaluating candidates for the following role.\n\n"
             f"Organisation: {panel['organisation_name']}\n"
             f"Role: {panel['role_title']}\n"
@@ -192,15 +198,17 @@ class AIHiringPanelProtocol(gl.Contract):
             "Candidate applications:\n"
         )
         for a in apps:
-            prompt += (
+            base_prompt += (
                 f"\nCandidate ID {a['application_id']}:\n"
                 f"  Name/Handle: {a['name_or_handle']}\n"
                 f"  Resume summary: {a['resume_summary']}\n"
                 f"  Role fit: {a['role_fit_statement']}\n"
                 f"  Communication: {a['communication_statement']}\n"
-                f"  Evidence URLs: {json.dumps(a['evidence_urls'])}\n"
+                f"  GitHub URL: {a.get('github_url', '')}\n"
+                f"  Portfolio URL: {a.get('portfolio_url', '')}\n"
+                f"  Evidence URLs: {json.dumps(a.get('evidence_urls', []))}\n"
             )
-        prompt += (
+        base_prompt += (
             "\nReturn a JSON object with this exact structure (no markdown, no extra text):\n"
             '{"rankings": [{"application_id": <int>, "rank": <int starting at 1>, '
             '"verdict": <"strong_yes"|"yes"|"maybe"|"no">, '
@@ -221,9 +229,14 @@ class AIHiringPanelProtocol(gl.Contract):
             start = raw.find("{")
             end = raw.rfind("}") + 1
             if start == -1 or end == 0:
-                return []
-            parsed = json.loads(raw[start:end])
+                raise gl.vm.UserError("LLM_ERROR: no JSON object found in LLM output")
+            try:
+                parsed = json.loads(raw[start:end])
+            except Exception as e:
+                raise gl.vm.UserError(f"LLM_ERROR: invalid JSON — {str(e)[:80]}")
             rankings = parsed.get("rankings", [])
+            if not rankings:
+                raise gl.vm.UserError("LLM_ERROR: empty rankings list returned")
             normalized = sorted(rankings, key=lambda x: x.get("rank", 999))
             for r in normalized:
                 r["application_id"] = int(r.get("application_id", 0))
@@ -242,6 +255,26 @@ class AIHiringPanelProtocol(gl.Contract):
             return normalized
 
         def leader_fn() -> str:
+            snippets = []
+            for a in apps:
+                entry = {"application_id": a["application_id"], "fetched": {}}
+                github_url = a.get("github_url", "")
+                if github_url:
+                    try:
+                        resp = gl.nondet.web.get(github_url)
+                        entry["fetched"]["github"] = (resp.text or "")[:1500]
+                    except Exception as e:
+                        entry["fetched"]["github"] = f"EXTERNAL: fetch failed — {str(e)[:80]}"
+                ev_fetched = []
+                for url in a.get("evidence_urls", [])[:2]:
+                    try:
+                        resp = gl.nondet.web.get(url)
+                        ev_fetched.append({"url": url, "content": (resp.text or "")[:1000]})
+                    except Exception as e:
+                        ev_fetched.append({"url": url, "content": f"EXTERNAL: fetch failed — {str(e)[:80]}"})
+                entry["fetched"]["evidence"] = ev_fetched
+                snippets.append(entry)
+            prompt = base_prompt + f"\n\nFetched evidence snippets:\n{json.dumps(snippets)}"
             raw = gl.nondet.exec_prompt(prompt)
             rankings = parse_ranking(raw)
             return json.dumps({"rankings": rankings}, sort_keys=True)
@@ -249,11 +282,36 @@ class AIHiringPanelProtocol(gl.Contract):
         def validator_fn(leader_result) -> bool:
             if not isinstance(leader_result, gl.vm.Return):
                 return False
-            leader_data = json.loads(leader_result.calldata)
+            try:
+                leader_data = json.loads(leader_result.calldata)
+            except Exception:
+                return False
             leader_order = [r["application_id"] for r in leader_data.get("rankings", [])]
-            # Re-run LLM independently and compare only rank order
+            snippets = []
+            for a in apps:
+                entry = {"application_id": a["application_id"], "fetched": {}}
+                github_url = a.get("github_url", "")
+                if github_url:
+                    try:
+                        resp = gl.nondet.web.get(github_url)
+                        entry["fetched"]["github"] = (resp.text or "")[:1500]
+                    except Exception as e:
+                        entry["fetched"]["github"] = f"EXTERNAL: fetch failed — {str(e)[:80]}"
+                ev_fetched = []
+                for url in a.get("evidence_urls", [])[:2]:
+                    try:
+                        resp = gl.nondet.web.get(url)
+                        ev_fetched.append({"url": url, "content": (resp.text or "")[:1000]})
+                    except Exception as e:
+                        ev_fetched.append({"url": url, "content": f"EXTERNAL: fetch failed — {str(e)[:80]}"})
+                entry["fetched"]["evidence"] = ev_fetched
+                snippets.append(entry)
+            prompt = base_prompt + f"\n\nFetched evidence snippets:\n{json.dumps(snippets)}"
             val_raw = gl.nondet.exec_prompt(prompt)
-            val_rankings = parse_ranking(val_raw)
+            try:
+                val_rankings = parse_ranking(val_raw)
+            except Exception:
+                return False
             val_order = [r["application_id"] for r in val_rankings]
             return leader_order == val_order
 
@@ -265,9 +323,9 @@ class AIHiringPanelProtocol(gl.Contract):
             "status": "final",
             "created_at": int(datetime.now(timezone.utc).timestamp()),
         }
-        self.rankings[panel_id] = json.dumps(ranking)
+        self.rankings[pid] = json.dumps(ranking)
         panel["status"] = "ranked"
-        self.panels[panel_id] = json.dumps(panel)
+        self.panels[pid] = json.dumps(panel)
 
     @gl.public.write
     def file_appeal(
@@ -277,9 +335,10 @@ class AIHiringPanelProtocol(gl.Contract):
         statement: str,
         evidence_urls: str,
     ) -> None:
-        assert panel_id in self.panels, "panel not found"
-        panel = json.loads(self.panels[panel_id])
-        assert panel["status"] == "ranked", "not ranked"
+        pid = u32(int(panel_id))
+        assert pid in self.panels, "EXPECTED: panel not found"
+        panel = json.loads(self.panels[pid])
+        assert panel["status"] == "ranked", "EXPECTED: panel must be in ranked status to file appeal"
         candidate = gl.message.sender_address.as_hex
         appeal = {
             "panel_id": int(panel_id),
@@ -292,38 +351,54 @@ class AIHiringPanelProtocol(gl.Contract):
             "verdict": "",
             "reasoning": "",
         }
-        self.appeals[panel_id] = json.dumps(appeal)
+        self.appeals[pid] = json.dumps(appeal)
         panel["status"] = "appeal_pending"
-        self.panels[panel_id] = json.dumps(panel)
+        self.panels[pid] = json.dumps(panel)
 
     @gl.public.write
     def request_appeal_review(self, panel_id: u64) -> None:
-        assert panel_id in self.panels, "panel not found"
-        panel = json.loads(self.panels[panel_id])
-        assert panel["manager"] == gl.message.sender_address.as_hex, "not manager"
-        assert panel["status"] == "appeal_pending", "no pending appeal"
-        assert panel_id in self.appeals, "appeal not found"
-        appeal = json.loads(self.appeals[panel_id])
-        ranking = json.loads(self.rankings[panel_id]) if panel_id in self.rankings else {}
+        pid = u32(int(panel_id))
+        assert pid in self.panels, "EXPECTED: panel not found"
+        panel = json.loads(self.panels[pid])
+        assert panel["manager"] == gl.message.sender_address.as_hex, "EXPECTED: not manager"
+        assert panel["status"] == "appeal_pending", "EXPECTED: no pending appeal"
+        assert pid in self.appeals, "EXPECTED: appeal record not found"
+        appeal = json.loads(self.appeals[pid])
+        ranking = json.loads(self.rankings[pid]) if pid in self.rankings else {}
 
-        prompt = (
+        appeal_evidence_urls = appeal.get("evidence_urls", [])[:3]
+        base_appeal_prompt = (
             "You are an independent appeal reviewer for a hiring panel.\n\n"
             f"Role: {panel['role_title']} at {panel['organisation_name']}\n"
             f"Appeal basis: {appeal['basis']}\n"
             f"Appellant statement: {appeal['statement']}\n"
             f"Original ranking: {json.dumps(ranking.get('rankings', []))}\n"
-            f"Appeal evidence URLs: {json.dumps(appeal['evidence_urls'])}\n\n"
-            "Evaluate whether the appeal has merit. Return JSON:\n"
-            '{"verdict": <"upheld"|"dismissed">, "reasoning": <string>}'
+            f"Appeal evidence URLs: {json.dumps(appeal_evidence_urls)}\n"
         )
 
         def appeal_leader_fn() -> str:
-            raw = gl.nondet.exec_prompt(prompt)
+            fetched_evidence = []
+            for url in appeal_evidence_urls:
+                try:
+                    resp = gl.nondet.web.get(url)
+                    fetched_evidence.append({"url": url, "content": (resp.text or "")[:1200]})
+                except Exception as e:
+                    fetched_evidence.append({"url": url, "content": f"EXTERNAL: fetch failed — {str(e)[:80]}"})
+            full_prompt = (
+                base_appeal_prompt
+                + f"Fetched appeal evidence:\n{json.dumps(fetched_evidence)}\n\n"
+                "Evaluate whether the appeal has merit. Return JSON:\n"
+                '{"verdict": <"upheld"|"dismissed">, "reasoning": <string>}'
+            )
+            raw = gl.nondet.exec_prompt(full_prompt)
             start = raw.find("{")
             end = raw.rfind("}") + 1
             if start == -1 or end == 0:
-                return json.dumps({"verdict": "dismissed", "reasoning": "Parse error"}, sort_keys=True)
-            parsed = json.loads(raw[start:end])
+                return json.dumps({"verdict": "dismissed", "reasoning": "LLM_ERROR: no JSON in output"}, sort_keys=True)
+            try:
+                parsed = json.loads(raw[start:end])
+            except Exception as e:
+                return json.dumps({"verdict": "dismissed", "reasoning": f"LLM_ERROR: {str(e)[:80]}"}, sort_keys=True)
             return json.dumps({
                 "verdict": str(parsed.get("verdict", "dismissed")),
                 "reasoning": str(parsed.get("reasoning", "")),
@@ -332,14 +407,32 @@ class AIHiringPanelProtocol(gl.Contract):
         def appeal_validator_fn(leader_result) -> bool:
             if not isinstance(leader_result, gl.vm.Return):
                 return False
-            leader_data = json.loads(leader_result.calldata)
-            val_raw = gl.nondet.exec_prompt(prompt)
+            try:
+                leader_data = json.loads(leader_result.calldata)
+            except Exception:
+                return False
+            fetched_evidence = []
+            for url in appeal_evidence_urls:
+                try:
+                    resp = gl.nondet.web.get(url)
+                    fetched_evidence.append({"url": url, "content": (resp.text or "")[:1200]})
+                except Exception as e:
+                    fetched_evidence.append({"url": url, "content": f"EXTERNAL: fetch failed — {str(e)[:80]}"})
+            full_prompt = (
+                base_appeal_prompt
+                + f"Fetched appeal evidence:\n{json.dumps(fetched_evidence)}\n\n"
+                "Evaluate whether the appeal has merit. Return JSON:\n"
+                '{"verdict": <"upheld"|"dismissed">, "reasoning": <string>}'
+            )
+            val_raw = gl.nondet.exec_prompt(full_prompt)
             start = val_raw.find("{")
             end = val_raw.rfind("}") + 1
             if start == -1 or end == 0:
                 return False
-            val_data = json.loads(val_raw[start:end])
-            # Only compare the verdict decision, not the reasoning text
+            try:
+                val_data = json.loads(val_raw[start:end])
+            except Exception:
+                return False
             return str(val_data.get("verdict", "dismissed")) == leader_data.get("verdict")
 
         result_str = gl.vm.run_nondet_unsafe(appeal_leader_fn, appeal_validator_fn)
@@ -347,57 +440,62 @@ class AIHiringPanelProtocol(gl.Contract):
         appeal["verdict"] = result.get("verdict", "dismissed")
         appeal["reasoning"] = result.get("reasoning", "")
         appeal["status"] = "reviewed"
-        self.appeals[panel_id] = json.dumps(appeal)
+        self.appeals[pid] = json.dumps(appeal)
         panel["status"] = "appeal_reviewed"
-        self.panels[panel_id] = json.dumps(panel)
+        self.panels[pid] = json.dumps(panel)
 
     @gl.public.write
     def finalize_ranking(self, panel_id: u64) -> None:
-        assert panel_id in self.panels, "panel not found"
-        panel = json.loads(self.panels[panel_id])
-        assert panel["manager"] == gl.message.sender_address.as_hex, "not manager"
-        assert panel["status"] in ("ranked", "appeal_reviewed"), "not ready to finalize"
+        pid = u32(int(panel_id))
+        assert pid in self.panels, "EXPECTED: panel not found"
+        panel = json.loads(self.panels[pid])
+        assert panel["manager"] == gl.message.sender_address.as_hex, "EXPECTED: not manager"
+        assert panel["status"] in ("ranked", "appeal_reviewed"), "EXPECTED: panel is not ready to finalize"
         panel["status"] = "finalized"
-        self.panels[panel_id] = json.dumps(panel)
+        self.panels[pid] = json.dumps(panel)
 
     # ── View methods ─────────────────────────────────────────────────────────
 
     @gl.public.view
     def get_panel(self, panel_id: u64) -> str:
-        if panel_id not in self.panels:
+        pid = u32(int(panel_id))
+        if pid not in self.panels:
             return "null"
-        return self.panels[panel_id]
+        return self.panels[pid]
 
     @gl.public.view
     def get_application(self, application_id: u64) -> str:
-        if application_id not in self.applications:
+        aid = u32(int(application_id))
+        if aid not in self.applications:
             return "null"
-        return self.applications[application_id]
+        return self.applications[aid]
 
     @gl.public.view
     def get_panel_applications(self, panel_id: u64) -> str:
-        pa_key = panel_id
+        pa_key = u32(int(panel_id))
         if pa_key not in self.panel_applications:
             return "[]"
         app_ids = json.loads(self.panel_applications[pa_key])
         result = []
         for aid in app_ids:
-            uid = u64(aid)
+            uid = u32(aid)
             if uid in self.applications:
                 result.append(json.loads(self.applications[uid]))
         return json.dumps(result)
 
     @gl.public.view
     def get_ranking_result(self, panel_id: u64) -> str:
-        if panel_id not in self.rankings:
+        pid = u32(int(panel_id))
+        if pid not in self.rankings:
             return "null"
-        return self.rankings[panel_id]
+        return self.rankings[pid]
 
     @gl.public.view
     def get_appeal(self, panel_id: u64) -> str:
-        if panel_id not in self.appeals:
+        pid = u32(int(panel_id))
+        if pid not in self.appeals:
             return "null"
-        return self.appeals[panel_id]
+        return self.appeals[pid]
 
     @gl.public.view
     def get_panels_by_manager(self, manager_address: str) -> str:
@@ -406,8 +504,8 @@ class AIHiringPanelProtocol(gl.Contract):
             return "[]"
         panel_ids = json.loads(self.manager_panels[key])
         result = []
-        for pid in panel_ids:
-            uid = u64(pid)
+        for pid_int in panel_ids:
+            uid = u32(pid_int)
             if uid in self.panels:
                 result.append(json.loads(self.panels[uid]))
         return json.dumps(result)
@@ -420,7 +518,7 @@ class AIHiringPanelProtocol(gl.Contract):
         app_ids = json.loads(self.candidate_applications[key])
         result = []
         for aid in app_ids:
-            uid = u64(aid)
+            uid = u32(aid)
             if uid in self.applications:
                 result.append(json.loads(self.applications[uid]))
         return json.dumps(result)
@@ -428,10 +526,10 @@ class AIHiringPanelProtocol(gl.Contract):
     @gl.public.view
     def get_all_panels(self) -> str:
         result = []
-        i = u64(0)
+        i = u32(0)
         count = self.panel_count
         while int(i) < int(count):
             if i in self.panels:
                 result.append(json.loads(self.panels[i]))
-            i = u64(int(i) + 1)
+            i = u32(int(i) + 1)
         return json.dumps(result)
