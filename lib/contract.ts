@@ -14,10 +14,9 @@ let _publicClient: ReturnType<typeof createClient> | null = null;
 
 function getPublicClient() {
   if (!_publicClient) {
-    _publicClient = createClient({
-      chain: chains.studionet,
-      endpoint: CHAIN_CONFIG.rpcUrl,
-    });
+    // Don't pass endpoint — chains.studionet already has the correct URL.
+    // Passing endpoint via env var risks BOM corruption on Windows builds.
+    _publicClient = createClient({ chain: chains.studionet });
   }
   return _publicClient;
 }
