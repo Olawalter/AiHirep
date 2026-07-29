@@ -163,7 +163,7 @@ NEXT_PUBLIC_CHAIN_NAME=GenLayer StudioNet
 NEXT_PUBLIC_CHAIN_ID=61999
 NEXT_PUBLIC_GENLAYER_RPC_URL=https://studio.genlayer.com/api
 NEXT_PUBLIC_GENLAYER_EXPLORER_URL=https://explorer-studio.genlayer.com
-NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS=0xF309eFf239C6b8d360912c8db1030d658C5Ce09f
+NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS=0x70ec8a62d8Fe7474797E767ec1C48Bbd211B7c57
 ```
 
 ### 4. Run locally
@@ -211,7 +211,7 @@ Open [http://localhost:3000](http://localhost:3000).
 The Intelligent Contract is pure Python running in GenLayer's GenVM. Key implementation details:
 
 - **Required first line:** `# { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }`
-- **Storage:** `TreeMap[u64, str]` — all data stored as JSON strings
+- **Storage:** `TreeMap[u32, str]` — all data stored as JSON strings (`u32` keys required; `u64` keys are not Comparable in GenLayer's TreeMap)
 - **Timestamps:** `int(datetime.now(timezone.utc).timestamp())` — `gl.message.block_timestamp` does not exist in GenLayer's API
 - **Non-deterministic writes:** `gl.vm.run_nondet_unsafe(leader_fn, validator_fn)` — leader runs the LLM, validators independently re-run and compare only stable decision fields (rank order for ranking, verdict string for appeals)
 - **Address handling:** `gl.message.sender_address.as_hex` returns lowercase — all address lookups must lowercase on both sides
