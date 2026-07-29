@@ -82,11 +82,11 @@ export default function AppealPage() {
     try {
       const tx = await requestAppealReview(address, panelId);
       setTxHash(tx);
-      setReviewMsg("Validators reviewing the appeal (30–120s)...");
+      setReviewMsg("Validators reviewing the appeal (2–5 min)...");
       await pollUntil(async () => {
         const a = await getAppeal(panelId);
         return a?.status === "reviewed";
-      }, 5000, 180000);
+      }, 5000, 300000);
       // Reload appeal to show verdict
       const [updatedPanel, updatedAppeal] = await Promise.all([getPanel(panelId), getAppeal(panelId)]);
       if (updatedPanel) setPanel(updatedPanel);

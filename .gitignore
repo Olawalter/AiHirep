@@ -22,3 +22,10 @@ tsconfig.tsbuildinfo
 .claude/
 
 .vercel
+
+# Deploy artifacts
+deploy.py
+deploy_result.txt
+__pycache__/
+**/__pycache__/
+*.pyc

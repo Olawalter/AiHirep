@@ -105,7 +105,7 @@ export default function ProfilePage() {
             {applications.length === 0 ? (
               <div className="border border-dashed border-white/10 rounded-xl py-10 text-center">
                 <p className="text-slate-grey font-mono text-sm">No applications found yet.</p>
-                <p className="text-slate-grey font-mono text-xs mt-1 opacity-60">If you just applied, validators are confirming — this refreshes automatically every 8s.</p>
+                <p className="text-slate-grey font-mono text-xs mt-1 opacity-60">If you just applied, validators are confirming — this refreshes automatically every 15s.</p>
                 <Link href="/panels" className="text-signal-blue text-sm font-mono mt-3 inline-block hover:underline">
                   Browse open panels →
                 </Link>
