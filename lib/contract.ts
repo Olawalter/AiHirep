@@ -173,12 +173,16 @@ export async function getPanelsByManager(address: string): Promise<HiringPanel[]
 
 export async function getApplicationsByCandidate(address: string): Promise<CandidateApplication[]> {
   const lower = address.toLowerCase();
-  try {
-    const result = await callView<CandidateApplication[]>("get_applications_by_candidate", [lower]);
-    console.log("[getApplicationsByCandidate] direct result for", lower, ":", result);
-    if (Array.isArray(result) && result.length > 0) return result;
-  } catch (e) {
-    console.error("[getApplicationsByCandidate] direct lookup error:", e);
+  // Contract stores addresses via gl.message.sender_address.as_hex (checksum format).
+  // Try the original address first (checksum from MetaMask), then lowercase.
+  for (const addr of [address, lower]) {
+    try {
+      const result = await callView<CandidateApplication[]>("get_applications_by_candidate", [addr]);
+      console.log("[getApplicationsByCandidate] direct result for", addr, ":", result);
+      if (Array.isArray(result) && result.length > 0) return result;
+    } catch (e) {
+      console.error("[getApplicationsByCandidate] direct lookup error for", addr, ":", e);
+    }
   }
 
   // Fallback: scan every panel's applications and filter by candidate address

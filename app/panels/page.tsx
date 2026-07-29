@@ -104,7 +104,7 @@ export default function PanelsPage() {
         <div className="text-center py-24 border border-dashed border-white/10 rounded-2xl">
           <p className="font-display font-semibold text-paper-white text-lg mb-2">No panels visible yet</p>
           <p className="text-slate-grey font-mono text-sm mb-2">
-            If you just created a panel, validators are reaching consensus — this page refreshes automatically every 8s.
+            If you just created a panel, validators are reaching consensus — this page refreshes automatically every 15s.
           </p>
           <p className="text-slate-grey font-mono text-xs mb-6 opacity-60">
             Or create the first panel to start evaluating candidates through validator consensus.
