@@ -2,7 +2,46 @@
 
 from genlayer import *
 import json
+import re
 from datetime import datetime, timezone
+
+
+def _fetch_url(url: str) -> str:
+    """Fetch URL with GitHub-specific fallbacks for reliable plain-text content.
+
+    GitHub profile/repo pages are JavaScript-rendered — plain HTTP GET returns
+    minimal HTML. Instead use the GitHub API and raw content endpoints which
+    return structured, readable content that validators can actually evaluate.
+    """
+    # GitHub repo → try raw README (plain text, no JS rendering needed)
+    m = re.match(r'https?://github\.com/([^/\s]+)/([^/\s]+?)(?:\.git)?/?$', url)
+    if m:
+        user, repo = m.group(1), m.group(2)
+        for raw_url in [
+            f"https://raw.githubusercontent.com/{user}/{repo}/main/README.md",
+            f"https://raw.githubusercontent.com/{user}/{repo}/master/README.md",
+        ]:
+            try:
+                resp = gl.nondet.web.get(raw_url)
+                if resp.text and len(resp.text.strip()) > 50:
+                    return resp.text[:2000]
+            except Exception:
+                pass
+
+    # GitHub profile → GitHub API returns structured JSON (bio, repos, languages)
+    m2 = re.match(r'https?://github\.com/([^/\s]+)/?$', url)
+    if m2:
+        user = m2.group(1)
+        try:
+            resp = gl.nondet.web.get(f"https://api.github.com/users/{user}")
+            if resp.text and len(resp.text.strip()) > 50:
+                return resp.text[:1500]
+        except Exception:
+            pass
+
+    # Default: fetch as-is (portfolio sites, evidence links, etc.)
+    resp = gl.nondet.web.get(url)
+    return (resp.text or "")[:2000]
 
 
 class AIHiringPanelProtocol(gl.Contract):
@@ -205,6 +244,10 @@ class AIHiringPanelProtocol(gl.Contract):
             f"Nice-to-have requirements: {json.dumps(panel['nice_to_have_requirements'])}\n"
             f"Culture values: {panel['culture_values']}\n"
             f"Evaluation weights: {json.dumps(weights)}\n\n"
+            "IMPORTANT: Some evidence URLs may show 'content unavailable' if the network could not "
+            "fetch them at evaluation time. This is a network limitation, not a candidate failure. "
+            "When content is unavailable, evaluate the candidate solely on their stated credentials "
+            "and written statements. Do NOT add fetch-related flags or penalise for unavailable URLs.\n\n"
             "Candidate applications:\n"
         )
         for a in apps:
@@ -271,17 +314,15 @@ class AIHiringPanelProtocol(gl.Contract):
                 github_url = a.get("github_url", "")
                 if github_url:
                     try:
-                        resp = gl.nondet.web.get(github_url)
-                        entry["fetched"]["github"] = (resp.text or "")[:1500]
-                    except Exception as e:
-                        entry["fetched"]["github"] = f"EXTERNAL: fetch failed — {str(e)[:80]}"
+                        entry["fetched"]["github"] = _fetch_url(github_url)
+                    except Exception:
+                        entry["fetched"]["github"] = "content unavailable — evaluate on stated credentials"
                 ev_fetched = []
                 for url in a.get("evidence_urls", [])[:2]:
                     try:
-                        resp = gl.nondet.web.get(url)
-                        ev_fetched.append({"url": url, "content": (resp.text or "")[:1000]})
-                    except Exception as e:
-                        ev_fetched.append({"url": url, "content": f"EXTERNAL: fetch failed — {str(e)[:80]}"})
+                        ev_fetched.append({"url": url, "content": _fetch_url(url)})
+                    except Exception:
+                        ev_fetched.append({"url": url, "content": "content unavailable — evaluate on stated credentials"})
                 entry["fetched"]["evidence"] = ev_fetched
                 snippets.append(entry)
             prompt = base_prompt + f"\n\nFetched evidence snippets:\n{json.dumps(snippets)}"
@@ -303,17 +344,15 @@ class AIHiringPanelProtocol(gl.Contract):
                 github_url = a.get("github_url", "")
                 if github_url:
                     try:
-                        resp = gl.nondet.web.get(github_url)
-                        entry["fetched"]["github"] = (resp.text or "")[:1500]
-                    except Exception as e:
-                        entry["fetched"]["github"] = f"EXTERNAL: fetch failed — {str(e)[:80]}"
+                        entry["fetched"]["github"] = _fetch_url(github_url)
+                    except Exception:
+                        entry["fetched"]["github"] = "content unavailable — evaluate on stated credentials"
                 ev_fetched = []
                 for url in a.get("evidence_urls", [])[:2]:
                     try:
-                        resp = gl.nondet.web.get(url)
-                        ev_fetched.append({"url": url, "content": (resp.text or "")[:1000]})
-                    except Exception as e:
-                        ev_fetched.append({"url": url, "content": f"EXTERNAL: fetch failed — {str(e)[:80]}"})
+                        ev_fetched.append({"url": url, "content": _fetch_url(url)})
+                    except Exception:
+                        ev_fetched.append({"url": url, "content": "content unavailable — evaluate on stated credentials"})
                 entry["fetched"]["evidence"] = ev_fetched
                 snippets.append(entry)
             prompt = base_prompt + f"\n\nFetched evidence snippets:\n{json.dumps(snippets)}"
@@ -400,10 +439,9 @@ class AIHiringPanelProtocol(gl.Contract):
             fetched_evidence = []
             for url in appeal_evidence_urls:
                 try:
-                    resp = gl.nondet.web.get(url)
-                    fetched_evidence.append({"url": url, "content": (resp.text or "")[:1200]})
-                except Exception as e:
-                    fetched_evidence.append({"url": url, "content": f"EXTERNAL: fetch failed — {str(e)[:80]}"})
+                    fetched_evidence.append({"url": url, "content": _fetch_url(url)})
+                except Exception:
+                    fetched_evidence.append({"url": url, "content": "content unavailable — evaluate on stated credentials"})
             full_prompt = (
                 base_appeal_prompt
                 + f"Fetched appeal evidence:\n{json.dumps(fetched_evidence)}\n\n"
@@ -434,10 +472,9 @@ class AIHiringPanelProtocol(gl.Contract):
             fetched_evidence = []
             for url in appeal_evidence_urls:
                 try:
-                    resp = gl.nondet.web.get(url)
-                    fetched_evidence.append({"url": url, "content": (resp.text or "")[:1200]})
-                except Exception as e:
-                    fetched_evidence.append({"url": url, "content": f"EXTERNAL: fetch failed — {str(e)[:80]}"})
+                    fetched_evidence.append({"url": url, "content": _fetch_url(url)})
+                except Exception:
+                    fetched_evidence.append({"url": url, "content": "content unavailable — evaluate on stated credentials"})
             full_prompt = (
                 base_appeal_prompt
                 + f"Fetched appeal evidence:\n{json.dumps(fetched_evidence)}\n\n"
