@@ -16,7 +16,7 @@ A hiring manager deploys a panel with a role mandate: must-have requirements, ev
 
 ## Why This Needs GenLayer
 
-A standard smart contract can track submission timestamps, candidate IDs, and deadlines. What it cannot do is reason about whether a GitHub repo demonstrates real skill, whether a portfolio is genuinely relevant to the role, or whether one candidate's communication is clearer than another's. GenLayer validators can — they read natural language, assess public URLs, and reach consensus on qualitative judgements using the Equivalence Principle.
+A standard smart contract can track submission timestamps, candidate IDs, and deadlines. What it cannot do is reason about whether a GitHub repo demonstrates real skill, whether a portfolio is genuinely relevant to the role, or whether one candidate's communication is clearer than another's. GenLayer validators can — they read natural language, attempt to fetch public URLs, and reach consensus on qualitative judgements using the Equivalence Principle.
 
 ---
 
@@ -163,7 +163,7 @@ NEXT_PUBLIC_CHAIN_NAME=GenLayer StudioNet
 NEXT_PUBLIC_CHAIN_ID=61999
 NEXT_PUBLIC_GENLAYER_RPC_URL=https://studio.genlayer.com/api
 NEXT_PUBLIC_GENLAYER_EXPLORER_URL=https://explorer-studio.genlayer.com
-NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS=0x70ec8a62d8Fe7474797E767ec1C48Bbd211B7c57
+NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS=0x5416F3281091505C8B3cA16b2c03E1be059E8D8f
 ```
 
 ### 4. Run locally
@@ -194,7 +194,7 @@ Open [http://localhost:3000](http://localhost:3000).
 ### Back to manager
 
 8. Click **Close Applications** when the window ends
-9. Click **Request Consensus Ranking** — validators run LLM evaluation, reach consensus on rank order (30–120 seconds)
+9. Click **Request Consensus Ranking** — validators run LLM evaluation, reach consensus on rank order (typically 3–5 minutes on StudioNet)
 10. Ranking appears on `/panels/[id]/ranking`
 
 ### Appeal (optional)
@@ -214,17 +214,18 @@ The Intelligent Contract is pure Python running in GenLayer's GenVM. Key impleme
 - **Storage:** `TreeMap[u32, str]` — all data stored as JSON strings (`u32` keys required; `u64` keys are not Comparable in GenLayer's TreeMap)
 - **Timestamps:** `int(datetime.now(timezone.utc).timestamp())` — `gl.message.block_timestamp` does not exist in GenLayer's API
 - **Non-deterministic writes:** `gl.vm.run_nondet_unsafe(leader_fn, validator_fn)` — leader runs the LLM, validators independently re-run and compare only stable decision fields (rank order for ranking, verdict string for appeals)
-- **Address handling:** `gl.message.sender_address.as_hex` returns lowercase — all address lookups must lowercase on both sides
+- **Address handling:** `gl.message.sender_address.as_hex` returns a checksum-format address (EIP-55 mixed-case). Lookups try both the original checksum address and lowercase for compatibility
 
 ---
 
 ## Known Limitations
 
 - StudioNet is a development network — not production-ready
-- Consensus time varies with validator load (typically instant for deterministic writes, 2–5 min for LLM ranking)
+- Consensus time varies with validator load (typically instant for deterministic writes, 3–5 min for LLM ranking)
 - StudioNet has 8 concurrent execution slots — heavy polling can trigger rate limits; the app retries automatically with backoff
 - Contract state is the source of truth — no local cache or indexer
 - Each new contract deployment requires updating `NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS`
+- **URL fetching:** StudioNet validators run in a sandboxed environment with restricted outbound network access — `gl.nondet.web.get` calls currently fail silently for external URLs. The contract implements GitHub-specific fallbacks (`raw.githubusercontent.com`, `api.github.com`) and degrades gracefully: when URLs cannot be fetched, candidates are evaluated on their stated credentials only and are not penalised for the network limitation. This is a StudioNet constraint, not a code issue — the fetching logic will work correctly on a network with unrestricted outbound access
 
 ---
 
