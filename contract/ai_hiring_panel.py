@@ -109,7 +109,17 @@ class AIHiringPanelProtocol(gl.Contract):
         assert pid in self.panels, "EXPECTED: panel not found"
         panel = json.loads(self.panels[pid])
         assert panel["status"] == "open", "EXPECTED: applications are not open"
+        now = int(datetime.now(timezone.utc).timestamp())
+        assert now <= panel["application_deadline"], "EXPECTED: application deadline has passed"
         candidate = gl.message.sender_address.as_hex
+        evidence_list = json.loads(evidence_urls)
+        assert len(evidence_list) >= panel["minimum_evidence_required"], "EXPECTED: insufficient evidence provided"
+        ca_key = candidate
+        existing_ids = json.loads(self.candidate_applications[ca_key]) if ca_key in self.candidate_applications else []
+        pa_key = pid
+        existing_panel_apps = json.loads(self.panel_applications[pa_key]) if pa_key in self.panel_applications else []
+        already_applied = any(aid in existing_ids for aid in existing_panel_apps)
+        assert not already_applied, "EXPECTED: candidate has already applied to this panel"
         app_id = self.application_count
         self.application_count = u32(int(self.application_count) + 1)
         app = {
@@ -124,7 +134,7 @@ class AIHiringPanelProtocol(gl.Contract):
             "work_sample_urls": json.loads(work_sample_urls),
             "communication_statement": communication_statement,
             "role_fit_statement": role_fit_statement,
-            "evidence_urls": json.loads(evidence_urls),
+            "evidence_urls": evidence_list,
             "status": "submitted",
             "submitted_at": int(datetime.now(timezone.utc).timestamp()),
         }
@@ -340,6 +350,16 @@ class AIHiringPanelProtocol(gl.Contract):
         panel = json.loads(self.panels[pid])
         assert panel["status"] == "ranked", "EXPECTED: panel must be in ranked status to file appeal"
         candidate = gl.message.sender_address.as_hex
+        pa_key = pid
+        app_ids = json.loads(self.panel_applications[pa_key]) if pa_key in self.panel_applications else []
+        is_candidate = any(
+            json.loads(self.applications[u32(aid)])["candidate"] == candidate
+            for aid in app_ids if u32(aid) in self.applications
+        )
+        assert is_candidate, "EXPECTED: only panel candidates can file an appeal"
+        ranking = json.loads(self.rankings[pid])
+        now = int(datetime.now(timezone.utc).timestamp())
+        assert now <= ranking["created_at"] + panel["appeal_window"], "EXPECTED: appeal window has closed"
         appeal = {
             "panel_id": int(panel_id),
             "appellant": candidate,
